@@ -63,6 +63,9 @@ seniority: "senior"
 whatever's missing. `resume_file` is optional and purely informational (no
 file is actually uploaded or parsed - left for V2).
 
+A ready-to-use mock example is at [`dummy_user.yaml`](./dummy_user.yaml) —
+upload it as-is to try the app with fake data.
+
 ## Running it
 
 ```bash

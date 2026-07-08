@@ -1,0 +1,20 @@
+# Mock example profile YAML — upload this at /admin/users/new to try the app
+# with fake data. Not a real person; safe to use as-is for local testing.
+name: "Alex Sample"
+email: "alex.sample@example.com"
+skills:
+  - "Golang"
+  - "Python"
+  - "AWS"
+  - "Docker"
+  - "Kubernetes"
+  - "PostgreSQL"
+  - "Microservices"
+  - "CI/CD"
+domain_expertise:
+  - "fintech"
+  - "payments"
+  - "platform"
+experience_years: 10
+seniority: "senior"
+# resume_file: "alex-sample-resume.pdf"   # optional, informational only — not parsed
