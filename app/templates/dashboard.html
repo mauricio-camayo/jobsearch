@@ -7,6 +7,7 @@
   <h2 style="margin-bottom:10px;">Crawling engines…</h2>
   <div id="dash-crawl-lines" style="font-size:13px;line-height:1.7;font-family:monospace;"></div>
   <div id="dash-crawl-summary" style="display:none;margin-top:10px;font-size:13px;font-weight:600;color:#16a34a;"></div>
+  <button id="dash-crawl-close-btn" class="btn btn-sm btn-ghost" style="display:none;margin-top:10px;" onclick="closeDashCrawlPanel()">Close</button>
 </div>
 
 {# ── Status summary bar ── #}
@@ -88,20 +89,32 @@
         <th>Notes / Flags</th>
         <th>Action</th>
       </tr>
+      <tr class="tracker-filter-row">
+        <th></th>
+        <th><input type="text" class="tracker-filter" data-col="company" placeholder="Filter…" style="width:100%;font-size:11px;padding:2px 4px;box-sizing:border-box;"></th>
+        <th><input type="text" class="tracker-filter" data-col="role" placeholder="Filter…" style="width:100%;font-size:11px;padding:2px 4px;box-sizing:border-box;"></th>
+        <th><input type="text" class="tracker-filter" data-col="fit" placeholder="Filter…" style="width:100%;font-size:11px;padding:2px 4px;box-sizing:border-box;"></th>
+        <th></th>
+        {% if st in ('applied','interviewing','offer','rejected') %}
+        <th></th>
+        {% endif %}
+        <th><input type="text" class="tracker-filter" data-col="notes" placeholder="Filter…" style="width:100%;font-size:11px;padding:2px 4px;box-sizing:border-box;"></th>
+        <th></th>
+      </tr>
     </thead>
     <tbody>
     {% for r in records %}
-    <tr>
+    <tr data-record-row="{{ r.id }}">
       <td style="color:#9ca3af;width:32px;">{{ r.id }}</td>
-      <td><strong>{{ r.company }}</strong></td>
-      <td>
+      <td data-col="company"><strong>{{ r.company }}</strong></td>
+      <td data-col="role">
         {% if r.apply_url %}
           <a href="{{ r.apply_url }}" target="_blank" rel="noopener">{{ r.role_title }}</a>
         {% else %}
           {{ r.role_title }}
         {% endif %}
       </td>
-      <td>
+      <td data-col="fit">
         {% if r.fit_pct is not none %}
           {% if r.fit_pct >= 70 %}
             <span class="fit-hi">{{ r.fit_pct }}%</span>
@@ -116,7 +129,7 @@
       {% if st in ('applied','interviewing','offer','rejected') %}
       <td style="white-space:nowrap;color:#6b7280;">{{ r.date_applied or '—' }}</td>
       {% endif %}
-      <td>
+      <td data-col="notes">
         {% if r.notes %}
           <span class="notes-text">{{ r.notes[:140] }}{% if r.notes|length > 140 %}…{% endif %}</span>
         {% endif %}
@@ -207,7 +220,9 @@ function startDashCrawl() {
   var panel = document.getElementById('dash-crawl-panel');
   var lines = document.getElementById('dash-crawl-lines');
   var summary = document.getElementById('dash-crawl-summary');
+  var closeBtn = document.getElementById('dash-crawl-close-btn');
   if (panel) { panel.style.display = ''; lines.innerHTML = ''; summary.style.display = 'none'; }
+  if (closeBtn) { closeBtn.style.display = 'none'; }
 
   var es = new EventSource('/api/search/crawl/stream');
   es.onmessage = function(evt) {
@@ -220,7 +235,7 @@ function startDashCrawl() {
       }
       if (panel) { panel.querySelector('h2').textContent = 'Crawl complete'; }
       if (btn) { btn.disabled = false; btn.innerHTML = '+ Run search'; }
-      setTimeout(function() { window.location.reload(); }, 1500);
+      if (closeBtn) { closeBtn.style.display = ''; }
     } else {
       if (lines) {
         var line = document.createElement('div');
@@ -236,9 +251,45 @@ function startDashCrawl() {
   };
 }
 
+function closeDashCrawlPanel() {
+  var panel = document.getElementById('dash-crawl-panel');
+  if (panel) { panel.style.display = 'none'; }
+  window.location.reload();
+}
+
 function checkAppliedLive(form) {
   var btn = document.getElementById('check-applied-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Checking…'; }
 }
+
+// Per-column search/filter on each status table (#69)
+document.querySelectorAll('table').forEach(function(table) {
+  var filterInputs = table.querySelectorAll('.tracker-filter');
+  var tbody = table.querySelector('tbody');
+  if (filterInputs.length === 0 || !tbody) return;
+
+  function applyFilters() {
+    var filters = {};
+    filterInputs.forEach(function(input) {
+      var v = input.value.trim().toLowerCase();
+      if (v) filters[input.dataset.col] = v;
+    });
+    tbody.querySelectorAll('tr[data-record-row]').forEach(function(row) {
+      var match = true;
+      for (var col in filters) {
+        var cell = row.querySelector('[data-col="' + col + '"]');
+        var text = cell ? cell.textContent.toLowerCase() : '';
+        if (text.indexOf(filters[col]) === -1) { match = false; break; }
+      }
+      row.style.display = match ? '' : 'none';
+      var notesRow = document.getElementById('notes-row-' + row.dataset.recordRow);
+      if (notesRow && !match) { notesRow.style.display = 'none'; }
+    });
+  }
+
+  filterInputs.forEach(function(input) {
+    input.addEventListener('input', applyFilters);
+  });
+});
 </script>
 {% endblock %}

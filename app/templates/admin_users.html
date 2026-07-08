@@ -13,6 +13,7 @@
         <th>Status</th>
         <th>Admin</th>
         <th>Password set</th>
+        <th>Usage</th>
         <th>Created</th>
         <th></th>
       </tr>
@@ -30,6 +31,15 @@
         </td>
         <td>{% if u.is_admin %}<span class="badge badge-offer">admin</span>{% else %}—{% endif %}</td>
         <td>{% if u.password_hash %}yes{% else %}<span class="notes-text">not claimed</span>{% endif %}</td>
+        <td style="font-size:12px;color:#6b7280;">
+          {% set u_usage = usage.get(u.id, {}) %}
+          {{ u_usage.get('tracker_count', 0) }} tracked
+          {% if u_usage.get('last_search_at') %}
+            <br><span style="color:#9ca3af;">last search {{ u_usage.last_search_at.strftime('%Y-%m-%d') }}</span>
+          {% else %}
+            <br><span style="color:#9ca3af;">no searches yet</span>
+          {% endif %}
+        </td>
         <td style="font-size:12px;color:#9ca3af;">{{ u.created_at }}</td>
         <td>
           {% if current_user and u.id != current_user.id %}

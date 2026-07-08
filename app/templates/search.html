@@ -17,6 +17,7 @@
     <h2 style="margin-bottom:10px;">Crawling engines…</h2>
     <div id="crawl-engine-lines" style="font-size:13px;line-height:1.7;font-family:monospace;"></div>
     <div id="crawl-summary" style="display:none;margin-top:10px;font-size:13px;font-weight:600;color:#16a34a;"></div>
+    <button id="crawl-close-btn" class="btn btn-sm btn-ghost" style="display:none;margin-top:10px;" onclick="closeCrawlPanel()">Close</button>
   </div>
 
   {# ── Search parameters panel ── #}
@@ -278,7 +279,9 @@ document.querySelectorAll('form[action="/ui/search/crawl"]').forEach(function(fo
     var panel = document.getElementById('crawl-progress-panel');
     var lines = document.getElementById('crawl-engine-lines');
     var summary = document.getElementById('crawl-summary');
+    var closeBtn = document.getElementById('crawl-close-btn');
     if (panel) { panel.style.display = ''; lines.innerHTML = ''; summary.style.display = 'none'; }
+    if (closeBtn) { closeBtn.style.display = 'none'; }
 
     var es = new EventSource(streamUrl);
     es.onmessage = function(evt) {
@@ -291,8 +294,7 @@ document.querySelectorAll('form[action="/ui/search/crawl"]').forEach(function(fo
         }
         if (panel) { panel.querySelector('h2').textContent = 'Crawl complete'; }
         if (btn) { btn.disabled = false; btn.innerHTML = '🔍 Crawl all engines'; }
-        // Reload page after a short pause so the results card appears
-        setTimeout(function() { window.location.reload(); }, 1500);
+        if (closeBtn) { closeBtn.style.display = ''; }
       } else {
         if (lines) {
           var line = document.createElement('div');
@@ -308,6 +310,12 @@ document.querySelectorAll('form[action="/ui/search/crawl"]').forEach(function(fo
     };
   });
 });
+
+function closeCrawlPanel() {
+  var panel = document.getElementById('crawl-progress-panel');
+  if (panel) { panel.style.display = 'none'; }
+  window.location.reload();
+}
 
 // "Add {company} to tracked career pages?" — confirm via fetch(), no page reload
 document.querySelectorAll('.add-career-page-btn').forEach(function(btn) {

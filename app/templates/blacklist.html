@@ -3,38 +3,6 @@
 <h1>Company Blacklist</h1>
 
 <div class="card">
-  <h2 style="margin-top:0;">Search engine status</h2>
-  <p style="color:#6b7280;font-size:13px;margin-top:-6px;">
-    Read-only. Engine credentials (e.g. LinkedIn's session cookie) are managed by an admin on the Engines page.
-  </p>
-  <table>
-    <thead>
-      <tr>
-        <th>Engine</th>
-        <th>Active</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for e in engine_status %}
-    <tr>
-      <td><strong>{{ e.name }}</strong></td>
-      <td>{{ 'Yes' if e.active else 'No' }}</td>
-      <td>
-        {% if e.configured %}
-          <span class="badge badge-shown">ready</span>
-        {% else %}
-          <span class="badge" style="background:#fef3c7;color:#92400e;">needs setup ({{ e.needs }})</span>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-{# ── Company Blacklist card ── #}
-<div class="card" style="margin-top:24px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
     <h2 style="margin:0;">Blacklisted companies ({{ blacklist|length }})</h2>
     <button class="btn btn-primary btn-sm"
@@ -98,5 +66,37 @@
   {% else %}
   <p style="color:#9ca3af;font-size:13px;">No companies blacklisted yet.</p>
   {% endif %}
+</div>
+
+{# ── Search engine status card ── #}
+<div class="card" style="margin-top:24px;">
+  <h2 style="margin-top:0;">Search engine status</h2>
+  <p style="color:#6b7280;font-size:13px;margin-top:-6px;">
+    Read-only. Engine credentials (e.g. LinkedIn's session cookie) are managed by an admin on the Engines page.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Engine</th>
+        <th>Active</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in engine_status %}
+    <tr>
+      <td><strong>{{ e.name }}</strong></td>
+      <td>{{ 'Yes' if e.active else 'No' }}</td>
+      <td>
+        {% if e.configured %}
+          <span class="badge badge-shown">ready</span>
+        {% else %}
+          <span class="badge" style="background:#fef3c7;color:#92400e;">needs setup ({{ e.needs }})</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

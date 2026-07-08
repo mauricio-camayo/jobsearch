@@ -5,6 +5,7 @@ import yaml
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password, require_admin, verify_password
@@ -12,6 +13,8 @@ from app.csrf import get_csrf_token, require_csrf_token
 from app.db.database import get_db
 from app.db.seed import seed_new_user_defaults
 from app.login_throttle import register_failure, reset_failures, seconds_until_retry
+from app.models.search_session import SearchSession
+from app.models.tracker_record import TrackerRecord
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.version import APP_VERSION
@@ -193,6 +196,25 @@ async def create_user(
 @router.get("/admin/users", response_class=HTMLResponse)
 def admin_users_list(request: Request, db: Session = Depends(get_db), admin: User | None = Depends(require_admin)):
     users = db.query(User).order_by(User.id).all()
+
+    tracker_counts = dict(
+        db.query(TrackerRecord.user_id, func.count(TrackerRecord.id))
+        .group_by(TrackerRecord.user_id)
+        .all()
+    )
+    last_search_at = dict(
+        db.query(SearchSession.user_id, func.max(SearchSession.started_at))
+        .group_by(SearchSession.user_id)
+        .all()
+    )
+    usage = {
+        u.id: {
+            "tracker_count": tracker_counts.get(u.id, 0),
+            "last_search_at": last_search_at.get(u.id),
+        }
+        for u in users
+    }
+
     flash, flash_type = _flash_from_request(request)
     return templates.TemplateResponse(request, "admin_users.html", {
         "request": request,
@@ -200,6 +222,7 @@ def admin_users_list(request: Request, db: Session = Depends(get_db), admin: Use
         "active": "admin",
         "current_user": admin,
         "users": users,
+        "usage": usage,
         "flash": flash,
         "flash_type": flash_type,
     })
