@@ -1,0 +1,25 @@
+#version: "3.9"
+
+# Pulls the published image from Docker Hub by default. To build from source
+# instead, comment out `image:` below and uncomment `build: .`.
+
+services:
+  app:
+    image: <dockerhub-username>/jobsearch:1.0.0
+    # build: .   # uncomment (and comment out `image:` above) to build from source instead
+    container_name: jobsearch
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:////app/data/jobsearch.db
+      # Required — the app refuses to start without this. Signs the session
+      # cookie; generate with: openssl rand -hex 32
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:?SESSION_SECRET_KEY must be set — generate with: openssl rand -hex 32}
+      # Set to "true" only if this instance is served exclusively over HTTPS
+      # (e.g. behind a reverse proxy / tunnel that terminates TLS).
+      - SESSION_COOKIE_HTTPS_ONLY=${SESSION_COOKIE_HTTPS_ONLY:-false}
+      # Leave unset/false in production — exposes /docs, /redoc, /openapi.json.
+      - ENABLE_API_DOCS=${ENABLE_API_DOCS:-false}
+    restart: unless-stopped

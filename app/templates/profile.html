@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Profile — {{ profile.full_name }}</h1>
+
+<div class="row">
+  <div class="col-2">
+    <div class="card">
+      <h2>Overview</h2>
+      <table style="width:auto;">
+        <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Email</td>
+            <td>{{ profile.email or '—' }}</td></tr>
+        <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Experience</td>
+            <td>{{ profile.experience_years }} yrs</td></tr>
+        <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Seniority</td>
+            <td>{{ profile.seniority }}</td></tr>
+        <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Last updated</td>
+            <td style="font-size:12px;color:#9ca3af;">{{ profile.updated_at }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-2">
+    <div class="card">
+      <h2>Domains</h2>
+      <div class="skill-list">
+        {% for d in profile.domains %}
+          <span class="domain">{{ d }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Skills ({{ profile.skills | length }})</h2>
+  <div class="skill-list">
+    {% for s in profile.skills %}
+      <span class="skill">{{ s }}</span>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Edit profile</h2>
+  <form method="post" action="/ui/profile/update">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <div class="row">
+      <div class="col-2">
+        <div class="field">
+          <label>Full name</label>
+          <input type="text" name="full_name" value="{{ profile.full_name }}" required style="width:100%">
+        </div>
+        <div class="field">
+          <label>Experience (years)</label>
+          <input type="number" name="experience_years" value="{{ profile.experience_years }}" min="0" required style="width:100%">
+        </div>
+        <div class="field">
+          <label>Seniority</label>
+          <select name="seniority" style="width:100%">
+            {% for level in ["senior", "staff", "director", "vp"] %}
+            <option value="{{ level }}" {{ "selected" if profile.seniority == level }}>{{ level }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="col-2">
+        <div class="field">
+          <label>Skills (one per line or comma-separated)</label>
+          <textarea name="skills" rows="6" style="width:100%">{{ profile.skills | join("\n") }}</textarea>
+        </div>
+        <div class="field">
+          <label>Domains (one per line or comma-separated)</label>
+          <textarea name="domains" rows="3" style="width:100%">{{ profile.domains | join("\n") }}</textarea>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Save profile</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Fit scoring rubric</h2>
+  <form method="post" action="/ui/profile/rubric">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <table style="width:400px;">
+      <thead><tr><th>Dimension</th><th>Weight</th><th>Bonus?</th></tr></thead>
+      <tbody>
+      {% for row in rubric %}
+      <tr>
+        <td>{{ row.dimension }}</td>
+        <td>
+          <input type="number" name="weight_{{ row.dimension }}" value="{{ row.weight }}" min="0" max="100" style="width:70px">
+        </td>
+        <td>{% if row.is_bonus %}yes{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="field" style="margin-top:12px;max-width:200px;">
+      <label>Autosave threshold (%)</label>
+      <input type="number" name="fit_autosave_threshold" value="{{ threshold }}" min="0" max="100" style="width:100%">
+      <small>Listings scoring at or above this are auto-saved to your tracker; below it, they're skipped.</small>
+    </div>
+    <div style="margin-top:6px;font-size:12px;color:#6b7280;">
+      Non-bonus weights (domain match, tech stack, seniority, remote/geo) must sum to 100.
+    </div>
+    <button class="btn btn-primary" type="submit" style="margin-top:10px;">Save weights</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="section-header">
+  <h1 style="margin-bottom:0;">Add User</h1>
+  <a href="/admin/users" class="btn btn-ghost btn-sm" style="margin-left:auto;">← Back to Users</a>
+</div>
+{% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+<div class="card" style="max-width:480px;">
+  <form method="post" action="/admin/users/new" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <div class="field">
+      <label>Profile YAML (from /career-coach)</label>
+      <input type="file" name="file" accept=".yaml,.yml" required>
+      <small>Must include email, name, skills, experience_years, seniority, domain_expertise.</small>
+    </div>
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Tracker Dashboard</h1>
+
+{# ── Crawl progress panel (shown during SSE crawl from dashboard) ── #}
+<div id="dash-crawl-panel" style="display:none;" class="card">
+  <h2 style="margin-bottom:10px;">Crawling engines…</h2>
+  <div id="dash-crawl-lines" style="font-size:13px;line-height:1.7;font-family:monospace;"></div>
+  <div id="dash-crawl-summary" style="display:none;margin-top:10px;font-size:13px;font-weight:600;color:#16a34a;"></div>
+</div>
+
+{# ── Status summary bar ── #}
+<div class="card" style="padding:12px 16px;">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    {% for st in status_order %}
+    {% set cnt = counts.get(st, 0) %}
+    <a href="#section-{{ st }}" style="text-decoration:none;">
+      <span class="badge badge-{{ st }}" style="font-size:12px;padding:3px 10px;">
+        {{ st }} {{ cnt }}
+      </span>
+    </a>
+    {% endfor %}
+    <span style="margin-left:auto;color:#9ca3af;font-size:12px;">
+      {{ total }} total &nbsp;·&nbsp;
+      <button id="dash-crawl-btn" class="btn btn-sm btn-primary" style="font-size:12px;padding:2px 10px;" onclick="startDashCrawl()">+ Run search</button>
+    </span>
+  </div>
+</div>
+
+{# ── Sections by status ── #}
+{% for st in status_order %}
+{% set records = groups.get(st, []) %}
+{% if records %}
+<div class="card" id="section-{{ st }}">
+  <div class="section-header">
+    <span class="badge badge-{{ st }}">{{ st }}</span>
+    <span class="section-count">{{ records|length }}</span>
+    {% if st == 'shown' %}
+    <span style="color:#d97706;font-size:12px;">⚠ Action needed</span>
+    <span style="color:#9ca3af;font-size:11px;margin-left:8px;">auto-floor {{ auto_floor }}%</span>
+    <div style="display:inline-flex;gap:6px;margin-left:auto;">
+      <form method="post" action="/ui/tracker/expire-stale" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <button type="submit" class="btn btn-sm btn-ghost"
+                style="font-size:11px;color:#6b7280;"
+                onclick="return confirm('Expire all shown listings with no action in the last {{ shown_expiry_days }} days?')">
+          Expire stale (&gt;{{ shown_expiry_days }}d)
+        </button>
+      </form>
+      <form method="post" action="/ui/tracker/bulk-skip" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <input type="hidden" name="max_fit_pct" value="{{ fit_autosave_threshold - 1 }}">
+        <button type="submit" class="btn btn-sm btn-ghost"
+                style="font-size:11px;color:#ef4444;"
+                onclick="return confirm('Skip all shown listings with fit below {{ fit_autosave_threshold }}%?')">
+          Remove below threshold ({{ fit_autosave_threshold }}%)
+        </button>
+      </form>
+    </div>
+    {% endif %}
+    {% if st == 'applied' %}
+    <div style="display:inline-flex;gap:6px;margin-left:auto;">
+      <form method="post" action="/ui/tracker/check-applied-live" style="display:inline;"
+            id="check-applied-form"
+            onsubmit="checkAppliedLive(this)">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <button type="submit" class="btn btn-sm btn-ghost"
+                id="check-applied-btn"
+                style="font-size:11px;color:#6b7280;">
+          Check if still live
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Company</th>
+        <th>Role</th>
+        <th>Fit%</th>
+        <th>Shown</th>
+        {% if st in ('applied','interviewing','offer','rejected') %}
+        <th>Applied</th>
+        {% endif %}
+        <th>Notes / Flags</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in records %}
+    <tr>
+      <td style="color:#9ca3af;width:32px;">{{ r.id }}</td>
+      <td><strong>{{ r.company }}</strong></td>
+      <td>
+        {% if r.apply_url %}
+          <a href="{{ r.apply_url }}" target="_blank" rel="noopener">{{ r.role_title }}</a>
+        {% else %}
+          {{ r.role_title }}
+        {% endif %}
+      </td>
+      <td>
+        {% if r.fit_pct is not none %}
+          {% if r.fit_pct >= 70 %}
+            <span class="fit-hi">{{ r.fit_pct }}%</span>
+          {% elif r.fit_pct >= 50 %}
+            <span class="fit-mid">{{ r.fit_pct }}%</span>
+          {% else %}
+            <span class="fit-lo">{{ r.fit_pct }}%</span>
+          {% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td style="white-space:nowrap;color:#6b7280;">{{ r.date_shown }}</td>
+      {% if st in ('applied','interviewing','offer','rejected') %}
+      <td style="white-space:nowrap;color:#6b7280;">{{ r.date_applied or '—' }}</td>
+      {% endif %}
+      <td>
+        {% if r.notes %}
+          <span class="notes-text">{{ r.notes[:140] }}{% if r.notes|length > 140 %}…{% endif %}</span>
+        {% endif %}
+        {# ── Enriched fit details for shown+applied+ rows (#36, #45) ── #}
+        {% if st in ('shown','applied','interviewing','offer','rejected') %}
+          {% set info = enriched.get(r.id) %}
+          {% if info %}
+            {# Quality flag badges #}
+            {% for flag in info.quality_flags %}
+              <span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:1px 5px;margin:1px 0;display:inline-block;">{{ flag }}</span>
+            {% endfor %}
+            {# Fit breakdown #}
+            {% if info.breakdown %}
+              <div style="margin-top:4px;font-size:11px;">
+                {% if info.breakdown.pros %}
+                  <div style="color:#16a34a;">
+                    <span style="font-weight:600;">+</span>
+                    {% for p in info.breakdown.pros %}
+                      <span title="{{ p.explanation }}">{{ p.label }} {{ p.score }}/{{ p.max_score }}</span>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if info.breakdown.cons %}
+                  <div style="color:#dc2626;">
+                    <span style="font-weight:600;">-</span>
+                    {% for c in info.breakdown.cons %}
+                      <span title="{{ c.explanation }}">{{ c.label }} {{ c.score }}/{{ c.max_score }}</span>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if info.breakdown.low_score_reason %}
+                  <div style="color:#9ca3af;font-style:italic;margin-top:2px;">{{ info.breakdown.low_score_reason }}</div>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endif %}
+        {% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        {% set transitions = valid_transitions.get(st, []) %}
+        {% if transitions %}
+        <form method="post" action="/ui/tracker/{{ r.id }}/status" style="display:inline-flex;gap:4px;align-items:center;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <select name="new_status">
+            {% for t in transitions %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-primary" type="submit">→</button>
+        </form>
+        {% else %}
+        <span style="color:#9ca3af;font-size:12px;">terminal</span>
+        {% endif %}
+        &nbsp;
+        <button class="btn btn-sm btn-ghost"
+                onclick="toggleNotes({{ r.id }})">note</button>
+      </td>
+    </tr>
+    {# Inline notes editor — hidden by default #}
+    <tr id="notes-row-{{ r.id }}" style="display:none;">
+      <td colspan="8" style="padding:6px 10px 10px;">
+        <form method="post" action="/ui/tracker/{{ r.id }}/notes"
+              style="display:flex;gap:8px;align-items:flex-start;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <textarea name="notes" rows="2"
+                    style="flex:1;font-size:12px;">{{ r.notes or '' }}</textarea>
+          <button class="btn btn-sm btn-primary" type="submit">Save</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endfor %}
+
+<script>
+function toggleNotes(id) {
+  const row = document.getElementById('notes-row-' + id);
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function startDashCrawl() {
+  var btn = document.getElementById('dash-crawl-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Running…'; }
+
+  var panel = document.getElementById('dash-crawl-panel');
+  var lines = document.getElementById('dash-crawl-lines');
+  var summary = document.getElementById('dash-crawl-summary');
+  if (panel) { panel.style.display = ''; lines.innerHTML = ''; summary.style.display = 'none'; }
+
+  var es = new EventSource('/api/search/crawl/stream');
+  es.onmessage = function(evt) {
+    var data = JSON.parse(evt.data);
+    if (data.done) {
+      es.close();
+      if (summary) {
+        summary.textContent = 'Done — ' + data.total_saved + ' saved, ' + data.total_skipped + ' skipped across ' + data.engines_crawled + ' engines.';
+        summary.style.display = '';
+      }
+      if (panel) { panel.querySelector('h2').textContent = 'Crawl complete'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '+ Run search'; }
+      setTimeout(function() { window.location.reload(); }, 1500);
+    } else {
+      if (lines) {
+        var line = document.createElement('div');
+        line.textContent = data.engine + ': ' + data.found + ' found, ' + data.saved + ' saved, ' + data.skipped + ' skipped';
+        lines.appendChild(line);
+      }
+    }
+  };
+  es.onerror = function() {
+    es.close();
+    if (btn) { btn.disabled = false; btn.innerHTML = '+ Run search'; }
+    if (panel) { panel.querySelector('h2').textContent = 'Crawl error — check logs'; }
+  };
+}
+
+function checkAppliedLive(form) {
+  var btn = document.getElementById('check-applied-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Checking…'; }
+}
+</script>
+{% endblock %}

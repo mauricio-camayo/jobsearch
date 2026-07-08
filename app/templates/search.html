@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+  <h1 style="margin:0;">Search</h1>
+  <form method="post" action="/ui/search/crawl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <button class="btn btn-primary" type="submit">🔍 Crawl all engines</button>
+    <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#6b7280;margin-left:8px;">
+      <input type="checkbox" name="dry_run"> Dry run
+    </label>
+  </form>
+</div>
+
+<div class="row">
+  {# ── Crawl progress panel (shown during / after SSE crawl) ── #}
+  <div id="crawl-progress-panel" style="display:none;" class="card">
+    <h2 style="margin-bottom:10px;">Crawling engines…</h2>
+    <div id="crawl-engine-lines" style="font-size:13px;line-height:1.7;font-family:monospace;"></div>
+    <div id="crawl-summary" style="display:none;margin-top:10px;font-size:13px;font-weight:600;color:#16a34a;"></div>
+  </div>
+
+  {# ── Search parameters panel ── #}
+  <div class="col-3">
+    <div class="card">
+      <h2>Filter defaults</h2>
+      <form method="post" action="/ui/search/params">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="field">
+          <label>Remote type</label>
+          <select name="remote_type" style="width:100%;">
+            {% for v in ['remote_hybrid','remote','hybrid','onsite','any'] %}
+            <option value="{{ v }}" {{ 'selected' if sp.remote_type == v }}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Geo preference</label>
+          <select name="geo" style="width:100%;">
+            {% for v in ['worldwide','latam','emea','north_america','any'] %}
+            <option value="{{ v }}" {{ 'selected' if sp.geo == v }}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Keywords <small>(one per line)</small></label>
+          <textarea name="keywords" rows="3">{{ kw_list | join('\n') }}</textarea>
+        </div>
+        <div class="field">
+          <label>Salary min (USD/yr)</label>
+          <input type="number" name="salary_min" style="width:100%;"
+                 value="{{ sp.salary_min or '' }}" placeholder="e.g. 150000">
+        </div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="checkbox" name="relocation_required"
+                   {{ 'checked' if sp.relocation_required }}>
+            Relocation required
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="checkbox" name="visa_required"
+                   {{ 'checked' if sp.visa_required }}>
+            Visa required
+          </label>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="submit">Save defaults</button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Listing submission panel ── #}
+  <div style="flex:1;">
+    <div class="card">
+      <h2>Submit listings to pipeline</h2>
+      <p style="color:#6b7280;font-size:12px;margin-bottom:12px;">
+        Paste one or more job URLs — one per line or comma-separated.
+        Known URLs are resolved from the local registry; unknown URLs are fetched
+        to extract the role and company automatically.
+      </p>
+      <form method="post" action="/ui/search/run">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="field">
+          <label>Job URLs</label>
+          <textarea name="urls_text" rows="8"
+                    placeholder="https://jobs.lever.co/dlocal/abc123&#10;https://boards.greenhouse.io/stripe/jobs/456&#10;https://jobs.ashbyhq.com/yuno/xyz">{{ prev_urls or '' }}</textarea>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" type="submit">Run pipeline</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#6b7280;">
+            <input type="checkbox" name="dry_run" {{ 'checked' if prev_dry_run }}>
+            Dry run (don't save to tracker)
+          </label>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="loadShownUrls()">
+            Use shown listings
+          </button>
+        </div>
+      </form>
+    </div>
+
+    {# ── Crawl engine errors ── #}
+    {% if crawl_errors %}
+    <div class="card" style="border-left:3px solid #f59e0b;padding:10px 14px;">
+      <strong style="font-size:13px;">Engine warnings:</strong>
+      {% for e in crawl_errors %}
+        <div style="font-size:12px;color:#92400e;margin-top:4px;">
+          <strong>{{ e.engine }}</strong>: {{ e.error }}
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Results panel ── #}
+    {% if session %}
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <h2 style="margin:0;">Pipeline results</h2>
+        <span style="font-size:12px;color:#6b7280;">{{ session.submitted }} submitted</span>
+        <span class="badge badge-applied">{{ session.saved }} saved</span>
+        <span class="badge badge-skipped">{{ session.skipped }} skipped</span>
+        {% if session.resurfaced %}
+        <span class="badge badge-shown">{{ session.resurfaced }} resurfaced</span>
+        {% endif %}
+        {% if session.dry_run %}
+        <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;">DRY RUN</span>
+        {% endif %}
+      </div>
+
+      {% if session.skip_reasons %}
+      <div style="margin-bottom:12px;font-size:12px;color:#6b7280;">
+        Skipped by:
+        {% for cat, cnt in session.skip_reasons.items() %}
+          <span class="badge badge-skipped">{{ cat }}: {{ cnt }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% for r in session.results %}
+      <div class="card decision-{{ r.decision }}"
+           style="padding:10px 12px;margin-bottom:8px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="flex:1;">
+            <strong>{{ r.company }}</strong>
+            <span style="color:#6b7280;"> — {{ r.role_title }}</span>
+            {% if r.apply_url %}
+              <a href="{{ r.apply_url }}" target="_blank" style="font-size:11px;margin-left:6px;">↗</a>
+            {% endif %}
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            {% if r.decision == 'saved' %}
+              <span class="badge badge-applied">saved{% if r.tracker_id %} #{{ r.tracker_id }}{% endif %}</span>
+            {% elif r.decision == 'resurfaced' %}
+              <span class="badge badge-shown">resurfaced{% if r.tracker_id %} #{{ r.tracker_id }}{% endif %}</span>
+            {% else %}
+              <span class="badge badge-skipped">skipped</span>
+            {% endif %}
+            {% if r.fit_pct is not none %}
+              &nbsp;
+              {% if r.fit_pct >= 70 %}
+                <span class="fit-hi">{{ r.fit_pct }}%</span>
+              {% elif r.fit_pct >= 50 %}
+                <span class="fit-mid">{{ r.fit_pct }}%</span>
+              {% else %}
+                <span class="fit-lo">{{ r.fit_pct }}%</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#6b7280;">{{ r.reason }}</div>
+        {% if r.flags %}
+        <div style="margin-top:4px;">
+          {% for f in r.flags %}
+            {% if '⭐' in f %}
+              <span class="flag flag-star">{{ f }}</span>
+            {% elif f in ('internal-only','remote-mismatch','cover-role') %}
+              <span class="flag flag-warn">{{ f }}</span>
+            {% else %}
+              <span class="flag">{{ f }}</span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if r.urgency_note %}
+        <div style="margin-top:4px;font-size:12px;color:#92400e;">⏰ {{ r.urgency_note }}</div>
+        {% endif %}
+        {% set suggestion = career_page_suggestions.get(r.apply_url) %}
+        {% if suggestion %}
+        <div class="career-page-prompt" data-company="{{ suggestion.company }}" data-careers-url="{{ suggestion.careers_url }}"
+             style="margin-top:8px;padding:8px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;
+                    font-size:12px;display:flex;align-items:center;gap:10px;">
+          <span>Add <strong>{{ suggestion.company }}</strong> to tracked career pages?</span>
+          <button type="button" class="btn btn-ghost btn-sm add-career-page-btn">Add</button>
+        </div>
+        {% endif %}
+        {% if r.fit_breakdown %}
+        <div style="margin-top:8px;border-top:1px solid #e5e7eb;padding-top:8px;">
+          <table style="width:100%;font-size:11px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#9ca3af;text-align:left;">
+                <th style="padding:2px 8px 2px 0;font-weight:600;">Dimension</th>
+                <th style="padding:2px 8px 2px 0;font-weight:600;text-align:right;">Score</th>
+                <th style="padding:2px 0;font-weight:600;">Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set _dim_labels = {
+                'domain_match': 'Domain match',
+                'tech_stack': 'Tech stack',
+                'seniority': 'Seniority',
+                'remote_geo': 'Remote / Geo',
+                'relocation_visa_bonus': 'Relocation / Visa'
+              } %}
+              {% for dim, d in r.fit_breakdown.items() %}
+              <tr style="border-top:1px solid #f3f4f6;">
+                <td style="padding:3px 8px 3px 0;color:#374151;white-space:nowrap;">
+                  {{ _dim_labels.get(dim, dim.replace('_',' ').title()) }}
+                </td>
+                <td style="padding:3px 8px 3px 0;text-align:right;white-space:nowrap;font-weight:600;">
+                  {% if d.score >= d.max_score * 0.6 %}
+                    <span style="color:#16a34a;">{{ d.score }}/{{ d.max_score }}</span>
+                  {% elif d.score > 0 %}
+                    <span style="color:#d97706;">{{ d.score }}/{{ d.max_score }}</span>
+                  {% else %}
+                    <span style="color:#dc2626;">{{ d.score }}/{{ d.max_score }}</span>
+                  {% endif %}
+                </td>
+                <td style="padding:3px 0;color:#6b7280;">{{ d.explanation }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+<script>
+async function loadShownUrls() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  try {
+    const resp = await fetch('/api/listings?status=shown');
+    const listings = await resp.json();
+    if (!Array.isArray(listings) || listings.length === 0) {
+      alert('No listings with status "shown" found in the listings registry.');
+      return;
+    }
+    const urls = listings
+      .map(l => l.apply_url)
+      .filter(Boolean)
+      .join('\n');
+    document.querySelector('textarea[name="urls_text"]').value = urls;
+  } catch(e) {
+    alert('Failed to load listings: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Use shown listings';
+  }
+}
+
+// Crawl form — SSE streaming progress instead of full-page reload
+document.querySelectorAll('form[action="/ui/search/crawl"]').forEach(function(form) {
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = form.querySelector('button[type="submit"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Running…';
+    }
+
+    var dryRun = form.querySelector('input[name="dry_run"]');
+    var isDryRun = dryRun && dryRun.checked;
+    var streamUrl = '/api/search/crawl/stream' + (isDryRun ? '?dry_run=true' : '');
+
+    var panel = document.getElementById('crawl-progress-panel');
+    var lines = document.getElementById('crawl-engine-lines');
+    var summary = document.getElementById('crawl-summary');
+    if (panel) { panel.style.display = ''; lines.innerHTML = ''; summary.style.display = 'none'; }
+
+    var es = new EventSource(streamUrl);
+    es.onmessage = function(evt) {
+      var data = JSON.parse(evt.data);
+      if (data.done) {
+        es.close();
+        if (summary) {
+          summary.textContent = 'Done — ' + data.total_saved + ' saved, ' + data.total_skipped + ' skipped across ' + data.engines_crawled + ' engines.';
+          summary.style.display = '';
+        }
+        if (panel) { panel.querySelector('h2').textContent = 'Crawl complete'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔍 Crawl all engines'; }
+        // Reload page after a short pause so the results card appears
+        setTimeout(function() { window.location.reload(); }, 1500);
+      } else {
+        if (lines) {
+          var line = document.createElement('div');
+          line.textContent = data.engine + ': ' + data.found + ' found, ' + data.saved + ' saved, ' + data.skipped + ' skipped';
+          lines.appendChild(line);
+        }
+      }
+    };
+    es.onerror = function() {
+      es.close();
+      if (btn) { btn.disabled = false; btn.innerHTML = '🔍 Crawl all engines'; }
+      if (panel) { panel.querySelector('h2').textContent = 'Crawl error — check logs'; }
+    };
+  });
+});
+
+// "Add {company} to tracked career pages?" — confirm via fetch(), no page reload
+document.querySelectorAll('.add-career-page-btn').forEach(function(btn) {
+  btn.addEventListener('click', async function() {
+    var container = btn.closest('.career-page-prompt');
+    var company = container.dataset.company;
+    var careersUrl = container.dataset.careersUrl;
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    try {
+      var resp = await fetch('/api/company-pages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({company: company, careers_url: careersUrl}),
+      });
+      if (resp.ok) {
+        container.style.background = '#f0fdf4';
+        container.style.borderColor = '#bbf7d0';
+        container.innerHTML = '✓ Added <strong>' + company + '</strong> to tracked career pages.';
+      } else {
+        var body = await resp.json().catch(function() { return {}; });
+        container.querySelector('span').textContent = 'Failed: ' + (body.detail || resp.status);
+        btn.disabled = false;
+        btn.textContent = 'Add';
+      }
+    } catch (e) {
+      alert('Failed to add career page: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = 'Add';
+    }
+  });
+});
+
+// Pipeline spinner: disable submit button + show spinner while waiting for server
+var pipelineForm = document.querySelector('form[action="/ui/search/run"]');
+if (pipelineForm) {
+  pipelineForm.addEventListener('submit', function() {
+    var btn = pipelineForm.querySelector('button[type="submit"]');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Running…';
+  });
+}
+</script>
+{% endblock %}

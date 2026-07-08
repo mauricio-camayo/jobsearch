@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Company Blacklist</h1>
+
+<div class="card">
+  <h2 style="margin-top:0;">Search engine status</h2>
+  <p style="color:#6b7280;font-size:13px;margin-top:-6px;">
+    Read-only. Engine credentials (e.g. LinkedIn's session cookie) are managed by an admin on the Engines page.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Engine</th>
+        <th>Active</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in engine_status %}
+    <tr>
+      <td><strong>{{ e.name }}</strong></td>
+      <td>{{ 'Yes' if e.active else 'No' }}</td>
+      <td>
+        {% if e.configured %}
+          <span class="badge badge-shown">ready</span>
+        {% else %}
+          <span class="badge" style="background:#fef3c7;color:#92400e;">needs setup ({{ e.needs }})</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Company Blacklist card ── #}
+<div class="card" style="margin-top:24px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <h2 style="margin:0;">Blacklisted companies ({{ blacklist|length }})</h2>
+    <button class="btn btn-primary btn-sm"
+            onclick="document.getElementById('blacklist-add-form').style.display='block';this.style.display='none'">
+      + Add company
+    </button>
+  </div>
+
+  {# ── Add blacklist entry form (hidden by default) ── #}
+  <div id="blacklist-add-form" style="display:none;border:1px solid #e5e7eb;border-radius:6px;padding:14px;margin-bottom:16px;">
+    <h2 style="margin-bottom:10px;">Blacklist company</h2>
+    <form method="post" action="/ui/blacklist/add">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+      <div class="row">
+        <div class="col-3 field">
+          <label>Company name</label>
+          <input type="text" name="company_name" required style="width:100%;" placeholder="Acme Corp">
+        </div>
+        <div class="col-3 field">
+          <label>Notes <small>(optional)</small></label>
+          <input type="text" name="notes" style="width:100%;" placeholder="Reason for blacklisting">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" type="submit">Add</button>
+        <button class="btn btn-ghost btn-sm" type="button"
+                onclick="document.getElementById('blacklist-add-form').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  {% if blacklist %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Company</th>
+        <th>Notes</th>
+        <th>Added</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for entry in blacklist %}
+    <tr>
+      <td style="color:#9ca3af;">{{ entry.id }}</td>
+      <td><strong>{{ entry.company_name }}</strong></td>
+      <td style="color:#6b7280;font-size:13px;">{{ entry.notes or '—' }}</td>
+      <td style="color:#9ca3af;font-size:12px;">{{ entry.created_at.strftime('%Y-%m-%d') if entry.created_at else '—' }}</td>
+      <td>
+        <form method="post" action="/ui/blacklist/{{ entry.id }}/delete"
+              onsubmit="return confirm('Remove {{ entry.company_name }} from blacklist?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button class="btn btn-sm btn-danger" type="submit">✕</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#9ca3af;font-size:13px;">No companies blacklisted yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

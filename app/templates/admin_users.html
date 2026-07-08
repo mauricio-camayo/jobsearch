@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="section-header">
+  <h1 style="margin-bottom:0;">Users</h1>
+  <a href="/admin/users/new" class="btn btn-primary btn-sm" style="margin-left:auto;">+ Add user</a>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Status</th>
+        <th>Admin</th>
+        <th>Password set</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.email }}</td>
+        <td>
+          {% if u.is_active %}
+            <span class="badge badge-applied">active</span>
+          {% else %}
+            <span class="badge badge-rejected">deactivated</span>
+          {% endif %}
+        </td>
+        <td>{% if u.is_admin %}<span class="badge badge-offer">admin</span>{% else %}—{% endif %}</td>
+        <td>{% if u.password_hash %}yes{% else %}<span class="notes-text">not claimed</span>{% endif %}</td>
+        <td style="font-size:12px;color:#9ca3af;">{{ u.created_at }}</td>
+        <td>
+          {% if current_user and u.id != current_user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/toggle-admin" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <button class="btn btn-ghost btn-sm" type="submit">{{ 'Revoke admin' if u.is_admin else 'Make admin' }}</button>
+          </form>
+          <form method="post" action="/admin/users/{{ u.id }}/toggle-active" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <button class="btn {{ 'btn-ghost' if not u.is_active else 'btn-danger' }} btn-sm" type="submit">
+              {{ 'Reactivate' if not u.is_active else 'Deactivate' }}
+            </button>
+          </form>
+          {% else %}
+          <span class="notes-text">(you)</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

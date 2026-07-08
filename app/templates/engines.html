@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Search Engines</h1>
+
+<style>
+.quirks-pre {
+  background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;
+  padding:8px 10px;font-size:11px;font-family:monospace;white-space:pre-wrap;
+  word-break:break-all;margin:6px 0 0;max-height:200px;overflow-y:auto;
+}
+.quirks-edit-form { margin-top:8px;display:none; }
+.quirks-edit-form textarea {
+  width:100%;font-family:monospace;font-size:11px;
+  border:1px solid #d1d5db;border-radius:4px;padding:6px;resize:vertical;
+}
+details > summary { cursor:pointer;list-style:none;user-select:none; }
+details > summary::-webkit-details-marker { display:none; }
+details > summary::before { content:"▶ "; font-size:10px;color:#6b7280; }
+details[open] > summary::before { content:"▼ "; }
+</style>
+
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <h2 style="margin:0;">Registered engines ({{ engines|length }})</h2>
+    <button class="btn btn-primary btn-sm"
+            onclick="document.getElementById('add-form').style.display='block';this.style.display='none'">
+      + Add engine
+    </button>
+  </div>
+
+  {# ── Add engine form (hidden by default) ── #}
+  <div id="add-form" style="display:none;border:1px solid #e5e7eb;border-radius:6px;padding:14px;margin-bottom:16px;">
+    <h2 style="margin-bottom:10px;">New engine</h2>
+    <form method="post" action="/ui/engines/add">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+      <div class="row">
+        <div class="col-3 field">
+          <label>Name</label>
+          <input type="text" name="name" required style="width:100%;" placeholder="Remotive">
+        </div>
+        <div class="col-3 field">
+          <label>Fetch strategy</label>
+          <select name="fetch_strategy" required style="width:100%;">
+            <option value="api">api</option>
+            <option value="html">html</option>
+            <option value="rss">rss</option>
+            <option value="sitemap">sitemap</option>
+            <option value="linkedin">linkedin</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Search URL template <small>(use {query} and {filters} as placeholders)</small></label>
+        <input type="text" name="search_url_template" required style="width:100%;"
+               placeholder="https://remotive.com/remote-jobs?search={query}">
+      </div>
+      <div class="field">
+        <label>Quirks <small>(optional — JSON object; crawl-behavior rules)</small></label>
+        <textarea name="quirks" rows="2" placeholder='{"notes": "Stale-URL pattern, login walls, redirect behaviour..."}'></textarea>
+      </div>
+      <div class="field">
+        <label>Search parameters <small>(optional — JSON object; per-engine config/secrets, e.g. LinkedIn's li_at cookie)</small></label>
+        <textarea name="search_params" rows="2" placeholder='{"li_at": "..."}'></textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" type="submit">Add</button>
+        <button class="btn btn-ghost btn-sm" type="button"
+                onclick="document.getElementById('add-form').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Engine table ── #}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Strategy</th>
+        <th>Base URL</th>
+        <th>Quirks</th>
+        <th>Search params</th>
+        <th>Active</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in engines %}
+    <tr>
+      <td style="color:#9ca3af;">{{ e.id }}</td>
+      <td><strong>{{ e.name }}</strong></td>
+      <td>
+        <span class="badge badge-shown">{{ e.fetch_strategy }}</span>
+      </td>
+      <td>
+        {% if e.search_url_template %}
+          <span style="font-size:11px;color:#6b7280;">
+            {{ e.search_url_template | replace('https://', '') | truncate(38) }}
+          </span>
+        {% else %}—{% endif %}
+      </td>
+      <td style="min-width:220px;">
+        {% set q = e.quirks %}
+        {% if q %}
+          <details id="quirks-details-{{ e.id }}">
+            <summary style="font-size:12px;color:#374151;">
+              {{ q | length }} key{{ 's' if q|length != 1 }}
+            </summary>
+            <pre class="quirks-pre" id="quirks-pre-{{ e.id }}">{{ q | tojson(indent=2) }}</pre>
+            <button class="btn btn-sm btn-ghost" style="margin-top:4px;font-size:11px;"
+                    onclick="toggleFieldEdit('quirks', {{ e.id }}, {{ q | tojson }})">
+              Edit quirks
+            </button>
+            <div class="quirks-edit-form" id="quirks-edit-{{ e.id }}">
+              <textarea id="quirks-ta-{{ e.id }}" rows="6">{{ q | tojson(indent=2) }}</textarea>
+              <div style="display:flex;gap:6px;margin-top:4px;">
+                <button class="btn btn-primary btn-sm" style="font-size:11px;"
+                        onclick="saveField('quirks', {{ e.id }})">Save</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px;"
+                        onclick="cancelFieldEdit('quirks', {{ e.id }})">Cancel</button>
+              </div>
+              <div id="quirks-err-{{ e.id }}" style="color:#dc2626;font-size:11px;margin-top:4px;display:none;"></div>
+            </div>
+          </details>
+        {% else %}
+          <span style="font-size:12px;color:#9ca3af;">—</span>
+          <button class="btn btn-sm btn-ghost" style="font-size:11px;margin-left:4px;"
+                  onclick="addField('quirks', {{ e.id }})">
+            + Add quirks
+          </button>
+          <div class="quirks-edit-form" id="quirks-edit-{{ e.id }}" style="margin-top:4px;">
+            <textarea id="quirks-ta-{{ e.id }}" rows="4">{}</textarea>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <button class="btn btn-primary btn-sm" style="font-size:11px;"
+                      onclick="saveField('quirks', {{ e.id }})">Save</button>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px;"
+                      onclick="cancelFieldEdit('quirks', {{ e.id }})">Cancel</button>
+            </div>
+            <div id="quirks-err-{{ e.id }}" style="color:#dc2626;font-size:11px;margin-top:4px;display:none;"></div>
+          </div>
+        {% endif %}
+      </td>
+      <td style="min-width:220px;">
+        {% set sp = e.search_params %}
+        {% if e.name == 'LinkedIn' %}
+          <div style="font-size:10px;color:#9ca3af;margin-bottom:4px;">
+            li_at cookie — log into linkedin.com, DevTools → Application → Cookies →
+            linkedin.com, copy <code>li_at</code>, paste below. Refresh here when
+            LinkedIn fetches start failing (login-wall). Sessions last ~1yr, invalidated
+            by logout/password change.
+          </div>
+        {% endif %}
+        {% if sp %}
+          <details id="params-details-{{ e.id }}">
+            <summary style="font-size:12px;color:#374151;">
+              {{ sp | length }} key{{ 's' if sp|length != 1 }}
+            </summary>
+            <pre class="quirks-pre" id="params-pre-{{ e.id }}">{{ sp | tojson(indent=2) }}</pre>
+            <button class="btn btn-sm btn-ghost" style="margin-top:4px;font-size:11px;"
+                    onclick="toggleFieldEdit('params', {{ e.id }}, {{ sp | tojson }})">
+              Edit search params
+            </button>
+            <div class="quirks-edit-form" id="params-edit-{{ e.id }}">
+              <textarea id="params-ta-{{ e.id }}" rows="6">{{ sp | tojson(indent=2) }}</textarea>
+              <div style="display:flex;gap:6px;margin-top:4px;">
+                <button class="btn btn-primary btn-sm" style="font-size:11px;"
+                        onclick="saveField('params', {{ e.id }})">Save</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px;"
+                        onclick="cancelFieldEdit('params', {{ e.id }})">Cancel</button>
+              </div>
+              <div id="params-err-{{ e.id }}" style="color:#dc2626;font-size:11px;margin-top:4px;display:none;"></div>
+            </div>
+          </details>
+        {% else %}
+          <span style="font-size:12px;color:#9ca3af;">—</span>
+          <button class="btn btn-sm btn-ghost" style="font-size:11px;margin-left:4px;"
+                  onclick="addField('params', {{ e.id }})">
+            + Add search params
+          </button>
+          <div class="quirks-edit-form" id="params-edit-{{ e.id }}" style="margin-top:4px;">
+            <textarea id="params-ta-{{ e.id }}" rows="4">{}</textarea>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <button class="btn btn-primary btn-sm" style="font-size:11px;"
+                      onclick="saveField('params', {{ e.id }})">Save</button>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px;"
+                      onclick="cancelFieldEdit('params', {{ e.id }})">Cancel</button>
+            </div>
+            <div id="params-err-{{ e.id }}" style="color:#dc2626;font-size:11px;margin-top:4px;display:none;"></div>
+          </div>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="/ui/engines/{{ e.id }}/toggle">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <label class="toggle" title="{{ 'Deactivate' if e.active else 'Activate' }}">
+            <input type="checkbox" {{ 'checked' if e.active }} onchange="this.form.submit()">
+            <span class="slider"></span>
+          </label>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/ui/engines/{{ e.id }}/delete"
+              onsubmit="return confirm('Delete {{ e.name }}?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button class="btn btn-sm btn-danger" type="submit">✕</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p style="margin-top:16px;font-size:13px;color:#6b7280;">
+  Company blacklist moved to its own <a href="/ui/blacklist">Blacklist</a> page, reachable by any user.
+</p>
+
+<script>
+// Generic editor for the two per-engine JSON dict fields: 'quirks' and 'params'.
+// 'params' maps to the /api/engines/{id}/search-params endpoint.
+function _fieldApiPath(field, id) {
+  return field === 'quirks'
+    ? '/api/engines/' + id + '/quirks'
+    : '/api/engines/' + id + '/search-params';
+}
+
+function toggleFieldEdit(field, id, current) {
+  const form = document.getElementById(field + '-edit-' + id);
+  const isVisible = form.style.display !== 'none';
+  form.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    document.getElementById(field + '-ta-' + id).value = JSON.stringify(current, null, 2);
+  }
+}
+
+function addField(field, id) {
+  document.getElementById(field + '-edit-' + id).style.display = 'block';
+}
+
+function cancelFieldEdit(field, id) {
+  document.getElementById(field + '-edit-' + id).style.display = 'none';
+  const err = document.getElementById(field + '-err-' + id);
+  if (err) err.style.display = 'none';
+}
+
+async function saveField(field, id) {
+  const ta = document.getElementById(field + '-ta-' + id);
+  const err = document.getElementById(field + '-err-' + id);
+  err.style.display = 'none';
+
+  let body;
+  try {
+    body = JSON.parse(ta.value);
+  } catch (e) {
+    err.textContent = 'Invalid JSON: ' + e.message;
+    err.style.display = 'block';
+    return;
+  }
+
+  // PATCH merges, so we first fetch current state and compute a replace-all patch.
+  // Simplest: send all keys plus set missing ones to null to remove them.
+  try {
+    const path = _fieldApiPath(field, id);
+    const getResp = await fetch(path);
+    const current = await getResp.json();
+
+    // Build patch: all new keys + null for any key present in current but not in body
+    const patch = Object.assign({}, body);
+    for (const k of Object.keys(current)) {
+      if (!(k in patch)) patch[k] = null;
+    }
+
+    const resp = await fetch(path, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(patch),
+    });
+    if (!resp.ok) {
+      const detail = await resp.json();
+      err.textContent = 'Server error: ' + JSON.stringify(detail);
+      err.style.display = 'block';
+      return;
+    }
+    const updated = await resp.json();
+
+    // Update the displayed pre block if it exists
+    const pre = document.getElementById(field + '-pre-' + id);
+    if (pre) pre.textContent = JSON.stringify(updated, null, 2);
+
+    cancelFieldEdit(field, id);
+    // Reload to reflect updated key count in summary
+    location.reload();
+  } catch (e) {
+    err.textContent = 'Request failed: ' + e.message;
+    err.style.display = 'block';
+  }
+}
+</script>
+{% endblock %}

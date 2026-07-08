@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:360px;margin:60px auto;">
+  <h1>Log in</h1>
+  {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+
+  {% if stage == "email" %}
+  <form method="post" action="/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <input type="hidden" name="stage" value="email">
+    <div class="field">
+      <label>Email</label>
+      <input type="text" name="email" required autofocus style="width:100%">
+    </div>
+    <button class="btn btn-primary" type="submit">Continue</button>
+  </form>
+  {% elif stage == "password" %}
+  <form method="post" action="/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <input type="hidden" name="stage" value="password">
+    <input type="hidden" name="email" value="{{ email }}">
+    <div class="field">
+      <label>{{ email }}</label>
+      <input type="password" name="password" placeholder="Password" required autofocus style="width:100%">
+    </div>
+    <button class="btn btn-primary" type="submit">Log in</button>
+  </form>
+  {% elif stage == "claim" %}
+  <p class="notes-text" style="margin-bottom:12px;">First time logging in — set a password for {{ email }}.</p>
+  <form method="post" action="/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <input type="hidden" name="stage" value="claim">
+    <input type="hidden" name="email" value="{{ email }}">
+    <div class="field">
+      <label>New password</label>
+      <input type="password" name="new_password" required autofocus style="width:100%">
+    </div>
+    <div class="field">
+      <label>Confirm password</label>
+      <input type="password" name="confirm_password" required style="width:100%">
+    </div>
+    <button class="btn btn-primary" type="submit">Set password &amp; log in</button>
+  </form>
+  {% endif %}
+  <div style="text-align:center;margin-top:16px;font-size:11px;color:#9ca3af;">v{{ app_version }}</div>
+</div>
+{% endblock %}
