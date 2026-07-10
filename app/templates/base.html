@@ -136,6 +136,33 @@
              animation: spin .7s linear infinite;
              vertical-align: middle; }
   .spinner-dark { border-color: rgba(0,0,0,.15); border-top-color: #374151; }
+
+  /* Wide-table scroll wrapper (#72) */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Responsive breakpoints (#72) */
+  @media (max-width: 768px) {
+    nav { flex-wrap: wrap; height: auto; padding: 8px 12px; row-gap: 6px; }
+    nav .brand { margin-right: 12px; }
+    nav a { padding: 0 8px; height: 34px; font-size: 12px; }
+    nav > span { margin-left: 0 !important; width: 100%; justify-content: flex-end; }
+
+    .page { padding: 16px 12px; }
+    .card { padding: 12px; }
+
+    .col-2, .col-3 { flex: 1 1 100%; }
+  }
+
+  @media (max-width: 480px) {
+    .page { padding: 12px 8px; }
+    .card { padding: 10px; }
+    nav > span span[style*="color:#64748b"] { display: none; }
+    table { font-size: 12px; }
+    th, td { padding: 5px 6px; }
+
+    .section-header { flex-wrap: wrap; row-gap: 6px; }
+    .section-header > div { flex-basis: 100%; margin-left: 0 !important; }
+  }
 </style>
 </head>
 <body>

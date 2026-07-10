@@ -82,6 +82,7 @@
   <h2>Fit scoring rubric</h2>
   <form method="post" action="/ui/profile/rubric">
     <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <div class="table-wrap">
     <table style="width:400px;">
       <thead><tr><th>Dimension</th><th>Weight</th><th>Bonus?</th></tr></thead>
       <tbody>
@@ -96,6 +97,7 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
     <div class="field" style="margin-top:12px;max-width:200px;">
       <label>Autosave threshold (%)</label>
       <input type="number" name="fit_autosave_threshold" value="{{ threshold }}" min="0" max="100" style="width:100%">
