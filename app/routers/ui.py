@@ -20,6 +20,7 @@ from app.auth import get_current_user_ui, require_admin
 from app.csrf import get_csrf_token, require_csrf_token
 from app.db.database import get_db
 from app.models.listing import JobListing
+from app.models.interview_prep import InterviewPrep
 from app.models.tracker_record import TrackerRecord, VALID_TRANSITIONS, TERMINAL_STATES
 from app.models.user import User
 from app.models.user_profile import UserProfile
@@ -33,6 +34,7 @@ from app.services.pipeline import run_pipeline, ListingInput
 from app.services.crawler import crawl_all_engines
 from app.services import linkedin
 from app.services.url_safety import UnsafeUrlError, assert_safe_external_url
+from app.services.markdown_lite import render as render_markdown_lite
 from app.routers.engines import VALID_STRATEGIES as VALID_ENGINE_STRATEGIES
 from app.version import APP_VERSION
 
@@ -432,6 +434,144 @@ def update_notes(
     record.updated_at = datetime.utcnow()
     db.commit()
     return _redirect("/ui/dashboard", f"Notes updated for #{record_id}")
+
+
+def _get_owned_record_or_none(db: Session, user_id: int, record_id: int) -> TrackerRecord | None:
+    return (
+        db.query(TrackerRecord)
+        .filter(TrackerRecord.id == record_id, TrackerRecord.user_id == user_id)
+        .first()
+    )
+
+
+def _prep_notes_context(db: Session, record: TrackerRecord, request: Request, embed: bool = False) -> dict:
+    notes = (
+        db.query(InterviewPrep)
+        .filter(InterviewPrep.tracker_record_id == record.id)
+        .order_by(InterviewPrep.pinned.desc(), InterviewPrep.updated_at.desc())
+        .all()
+    )
+    rendered = [
+        {"note": n, "html": render_markdown_lite(n.body)}
+        for n in notes
+    ]
+    flash, flash_type = _flash_from_request(request)
+    return {
+        "request": request,
+        "record": record,
+        "notes": rendered,
+        "embed": embed,
+        "flash": flash,
+        "flash_type": flash_type,
+    }
+
+
+@router.get("/ui/tracker/{record_id}/prep", response_class=HTMLResponse)
+def prep_page(
+    record_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_ui),
+):
+    record = _get_owned_record_or_none(db, current_user.id, record_id)
+    if record is None:
+        return _redirect("/ui/dashboard", f"Record #{record_id} not found", "err")
+    ctx = _prep_notes_context(db, record, request)
+    ctx.update({"current_user": current_user, "title": f"Prep — {record.company}", "active": "dashboard"})
+    return templates.TemplateResponse(request, "interview_prep.html", ctx)
+
+
+@router.get("/ui/tracker/{record_id}/prep/fragment", response_class=HTMLResponse)
+def prep_fragment(
+    record_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_ui),
+):
+    record = _get_owned_record_or_none(db, current_user.id, record_id)
+    if record is None:
+        return HTMLResponse("<p>Record not found.</p>", status_code=404)
+    ctx = _prep_notes_context(db, record, request, embed=True)
+    return templates.TemplateResponse(request, "_prep_fragment.html", ctx)
+
+
+@router.post("/ui/tracker/{record_id}/prep")
+def prep_add(
+    record_id: int,
+    title: Annotated[str, Form()] = "",
+    body: Annotated[str, Form()] = "",
+    pinned: Annotated[str, Form()] = "",
+    fragment: Annotated[str, Form()] = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_ui),
+):
+    record = _get_owned_record_or_none(db, current_user.id, record_id)
+    if record is None:
+        return _redirect("/ui/dashboard", f"Record #{record_id} not found", "err")
+    body = body.strip()
+    title = title.strip()
+    target = f"/ui/tracker/{record_id}/prep/fragment" if fragment else f"/ui/tracker/{record_id}/prep"
+    if not body:
+        return _redirect(target, "Note body can't be empty", "err")
+    if len(body) > 20_000:
+        return _redirect(target, "Note body too long (max 20,000 characters)", "err")
+    if len(title) > 200:
+        return _redirect(target, "Note title too long (max 200 characters)", "err")
+    db.add(InterviewPrep(
+        tracker_record_id=record_id,
+        title=title or None,
+        body=body,
+        pinned=bool(pinned),
+    ))
+    db.commit()
+    return _redirect(target, "Note added")
+
+
+@router.post("/ui/tracker/{record_id}/prep/{note_id}/delete")
+def prep_delete(
+    record_id: int,
+    note_id: int,
+    fragment: Annotated[str, Form()] = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_ui),
+):
+    record = _get_owned_record_or_none(db, current_user.id, record_id)
+    if record is not None:
+        note = (
+            db.query(InterviewPrep)
+            .filter(InterviewPrep.id == note_id, InterviewPrep.tracker_record_id == record_id)
+            .first()
+        )
+        if note is not None:
+            db.delete(note)
+            db.commit()
+    if fragment:
+        return RedirectResponse(f"/ui/tracker/{record_id}/prep/fragment", status_code=303)
+    return _redirect(f"/ui/tracker/{record_id}/prep", "Note deleted")
+
+
+@router.post("/ui/tracker/{record_id}/prep/{note_id}/pin")
+def prep_toggle_pin(
+    record_id: int,
+    note_id: int,
+    fragment: Annotated[str, Form()] = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_ui),
+):
+    record = _get_owned_record_or_none(db, current_user.id, record_id)
+    if record is not None:
+        note = (
+            db.query(InterviewPrep)
+            .filter(InterviewPrep.id == note_id, InterviewPrep.tracker_record_id == record_id)
+            .first()
+        )
+        if note is not None:
+            note.pinned = not note.pinned
+            note.updated_at = datetime.utcnow()
+            db.commit()
+    if fragment:
+        return RedirectResponse(f"/ui/tracker/{record_id}/prep/fragment", status_code=303)
+    return _redirect(f"/ui/tracker/{record_id}/prep", "Updated")
 
 
 @router.post("/ui/tracker/check-applied-live")

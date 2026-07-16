@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Interview prep — {{ record.company }}</h1>
+<p style="color:#6b7280;font-size:13px;margin:-10px 0 16px;">
+  {{ record.role_title }}
+  <span class="badge badge-{{ record.status }}" style="margin-left:8px;">{{ record.status }}</span>
+</p>
+
+{% include "_prep_fragment.html" %}
+
+<p style="margin-top:12px;"><a href="/ui/dashboard">&larr; Back to dashboard</a></p>
+{% endblock %}

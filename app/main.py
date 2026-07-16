@@ -18,6 +18,7 @@ import app.models.listing           # noqa: F401
 import app.models.company_blacklist  # noqa: F401
 import app.models.user              # noqa: F401
 import app.models.search_session    # noqa: F401
+import app.models.interview_prep    # noqa: F401
 from app.db.seed import (
     seed_search_engines,
     seed_company_pages,
@@ -26,6 +27,7 @@ from app.db.seed import (
 from app.routers import (
     auth, profile, tracker, engines, company_pages,
     verify, scoring, config, dedup, search_params, quality, search_run, ui, listings, blacklist,
+    interview_prep,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -105,6 +107,7 @@ async def _login_required_handler(request, exc):
 app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(tracker.router)
+app.include_router(interview_prep.router)
 app.include_router(engines.router)
 app.include_router(company_pages.router)
 app.include_router(verify.router)

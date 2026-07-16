@@ -1,0 +1,49 @@
+<div class="prep-notes" data-record-id="{{ record.id }}">
+  {% if flash %}
+    <div class="flash {{ flash_type or 'ok' }}">{{ flash }}</div>
+  {% endif %}
+
+  {% if not notes %}
+    <p style="color:#9ca3af;font-size:13px;">No prep notes yet — add the first one below.</p>
+  {% endif %}
+
+  {% for item in notes %}
+    <div class="card prep-note{% if item.note.pinned %} prep-note-pinned{% endif %}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
+        <strong style="font-size:13px;">{{ item.note.title or "Untitled note" }}</strong>
+        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
+          <span style="font-size:11px;color:#9ca3af;white-space:nowrap;">{{ item.note.updated_at.strftime("%Y-%m-%d %H:%M") }}</span>
+          <form method="post" action="/ui/tracker/{{ record.id }}/prep/{{ item.note.id }}/pin" class="prep-inline-form" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <input type="hidden" name="fragment" value="{{ '1' if embed else '' }}">
+            <button class="btn btn-sm btn-ghost" type="submit" title="Pin to top">{{ "★" if item.note.pinned else "☆" }}</button>
+          </form>
+          <form method="post" action="/ui/tracker/{{ record.id }}/prep/{{ item.note.id }}/delete" class="prep-inline-form" style="display:inline;" data-confirm="Delete this note?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <input type="hidden" name="fragment" value="{{ '1' if embed else '' }}">
+            <button class="btn btn-sm btn-danger" type="submit">delete</button>
+          </form>
+        </div>
+      </div>
+      <div class="prep-body">{{ item.html | safe }}</div>
+    </div>
+  {% endfor %}
+
+  <form method="post" action="/ui/tracker/{{ record.id }}/prep" class="card prep-add-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <input type="hidden" name="fragment" value="{{ '1' if embed else '' }}">
+    <h2 style="margin-bottom:10px;">Add note</h2>
+    <div class="field">
+      <label>Title (optional)</label>
+      <input type="text" name="title" maxlength="200" style="width:100%" placeholder="e.g. Talking points — B Corp / DCC">
+    </div>
+    <div class="field">
+      <label>Note — markdown: <code>## header</code>, <code>**bold**</code>, <code>- bullets</code>, <code>[text](url)</code></label>
+      <textarea name="body" rows="6" maxlength="20000" style="width:100%" required></textarea>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;margin-bottom:10px;">
+      <input type="checkbox" name="pinned" value="1"> Pin to top
+    </label>
+    <button class="btn btn-primary btn-sm" type="submit">Add note</button>
+  </form>
+</div>

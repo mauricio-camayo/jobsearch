@@ -187,6 +187,9 @@
         &nbsp;
         <button class="btn btn-sm btn-ghost"
                 onclick="toggleNotes({{ r.id }})">note</button>
+        &nbsp;
+        <button class="btn btn-sm {{ 'btn-primary' if st == 'interviewing' else 'btn-ghost' }}"
+                onclick="openPrepModal({{ r.id }})" title="Interview prep notes">🎯 prep</button>
       </td>
     </tr>
     {# Inline notes editor — hidden by default #}
@@ -208,6 +211,20 @@
 </div>
 {% endif %}
 {% endfor %}
+
+{# ── Interview-prep modal (#74) ── #}
+<dialog id="prep-dialog" style="width:min(90vw,760px);max-height:85vh;padding:0;border:none;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.25);">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;background:#fff;">
+    <strong style="font-size:14px;">Interview prep</strong>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <a id="prep-dialog-tab-link" href="#" target="_blank" class="btn btn-sm btn-ghost">Open in tab ↗</a>
+      <button class="btn btn-sm btn-ghost" onclick="document.getElementById('prep-dialog').close()">✕</button>
+    </div>
+  </div>
+  <div id="prep-dialog-body" style="padding:16px;overflow-y:auto;max-height:calc(85vh - 46px);">
+    <p style="color:#9ca3af;font-size:13px;">Loading…</p>
+  </div>
+</dialog>
 
 <script>
 function toggleNotes(id) {
@@ -292,6 +309,37 @@ document.querySelectorAll('table').forEach(function(table) {
   filterInputs.forEach(function(input) {
     input.addEventListener('input', applyFilters);
   });
+});
+
+// Interview-prep modal (#74)
+var prepDialog = document.getElementById('prep-dialog');
+var prepBody = document.getElementById('prep-dialog-body');
+var prepTabLink = document.getElementById('prep-dialog-tab-link');
+
+function openPrepModal(recordId) {
+  prepTabLink.href = '/ui/tracker/' + recordId + '/prep';
+  loadPrepFragment(recordId);
+  prepDialog.showModal();
+}
+
+function loadPrepFragment(recordId) {
+  prepBody.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+  fetch('/ui/tracker/' + recordId + '/prep/fragment')
+    .then(function(r) { return r.text(); })
+    .then(function(html) { prepBody.innerHTML = html; })
+    .catch(function() { prepBody.innerHTML = '<p style="color:#b91c1c;font-size:13px;">Failed to load prep notes.</p>'; });
+}
+
+prepBody.addEventListener('submit', function(e) {
+  var form = e.target;
+  if (!form.matches('.prep-add-form, .prep-inline-form')) return;
+  e.preventDefault();
+  if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+  var recordId = prepBody.querySelector('.prep-notes').dataset.recordId;
+  fetch(form.action, { method: 'POST', body: new FormData(form) })
+    .then(function(r) { return r.text(); })
+    .then(function(html) { prepBody.innerHTML = html; })
+    .catch(function() { prepBody.innerHTML = '<p style="color:#b91c1c;font-size:13px;">Failed to save — try again.</p>'; });
 });
 </script>
 {% endblock %}

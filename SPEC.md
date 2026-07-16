@@ -192,6 +192,33 @@ In V1, platform quirks are stored as a `quirks` JSON column in `SearchEngine`. I
 | Greenhouse | Boards at `boards.greenhouse.io/{company}` are crawlable without auth |
 | Ashby | Boards at `jobs.ashbyhq.com/{company}` are crawlable; status field in JSON |
 
+### 3.10 InterviewPrep (planned — PRIORITIES.md item 74)
+
+Durable, incremental notes tied to a `TrackerRecord`, replacing the current state where `/recruiter`-generated interview prep (company overview, talking points, prepped answers, salary research) only lives in chat transcripts. A list of notes per record, not a single blob, so prep accrues across sessions without overwrite races.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | integer PK | |
+| `tracker_record_id` | FK → TrackerRecord | required |
+| `title` | text | nullable |
+| `body` | text | Markdown |
+| `pinned` | boolean | pinned notes surface first in the list/modal |
+| `created_at` | datetime | |
+| `updated_at` | datetime | |
+
+CRUD API (mirrors `app/routers/tracker.py`'s `get_current_user_api` + ownership-check pattern; no CSRF — API routes are session-cookie-only, consistent with `tracker.sh`):
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/tracker/{id}/prep` | GET | list notes for a tracker record |
+| `/api/tracker/{id}/prep` | POST | create a note |
+| `/api/tracker/{id}/prep/{note_id}` | PATCH | update a note |
+| `/api/tracker/{id}/prep/{note_id}` | DELETE | delete a note |
+
+UI: a modal on the Dashboard (triggered by a button next to the existing per-row "note" button, emphasized when `status == interviewing`) renders notes as Markdown via a small vendored (no-CDN) markdown-lite renderer, with a "+ Add note" form posting via `fetch()`. A server-rendered full-page view at `/ui/tracker/{id}/prep` (linked from the modal) supports a no-scroll second-monitor read during a live interview.
+
+`/recruiter` integration: `tracker.sh` gains `prep --record-id <id> --title "..." --body-file <path>` (body via file to avoid multi-line shell-quoting issues) and `prep-list <record-id>`, so interview-prep content the skill generates is written through to this table instead of staying only in the transcript.
+
 ---
 
 ## 4. Status state machine

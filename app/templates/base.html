@@ -140,6 +140,19 @@
   /* Wide-table scroll wrapper (#72) */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+  /* Interview-prep notes (#74) */
+  dialog::backdrop { background: rgba(15, 23, 42, .5); }
+  .prep-note { border-left: 3px solid #e5e7eb; }
+  .prep-note-pinned { border-left: 3px solid #d97706; }
+  .prep-body { overflow-wrap: break-word; word-break: break-word; }
+  .prep-body h4 { font-size: 13px; margin: 8px 0 4px; color: #1e293b; overflow-wrap: break-word; word-break: break-word; }
+  .prep-body h5 { font-size: 12px; margin: 8px 0 4px; color: #374151; overflow-wrap: break-word; word-break: break-word; }
+  .prep-body p { font-size: 13px; line-height: 1.5; margin-bottom: 6px; overflow-wrap: break-word; word-break: break-word; }
+  .prep-body ul, .prep-body ol { font-size: 13px; line-height: 1.5; margin: 0 0 6px 18px; overflow-wrap: break-word; word-break: break-word; }
+  .prep-body li { margin-bottom: 2px; overflow-wrap: break-word; word-break: break-word; }
+  .prep-body a { overflow-wrap: break-word; word-break: break-word; }
+  .prep-body strong { color: #1e293b; }
+
   /* Responsive breakpoints (#72) */
   @media (max-width: 768px) {
     nav { flex-wrap: wrap; height: auto; padding: 8px 12px; row-gap: 6px; }
