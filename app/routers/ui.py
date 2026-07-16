@@ -45,6 +45,12 @@ templates.env.globals["app_version"] = APP_VERSION
 
 STATUS_ORDER = ["shown", "applied", "interviewing", "offer", "rejected", "skipped", "expired"]
 
+# Dashboard tab display order: shown (needs action) and interviewing (upcoming,
+# time-sensitive) come before applied (44+ items, mostly waiting) so the tabs
+# a user actually needs to act on aren't buried behind a long applied list (#78).
+DASHBOARD_TAB_ORDER = ["shown", "interviewing", "applied", "offer", "rejected", "skipped", "expired"]
+_DEFAULT_TAB_PRIORITY = ["shown", "interviewing", "applied"]
+
 _FETCH_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -367,6 +373,11 @@ def dashboard(
         for st, targets in VALID_TRANSITIONS.items()
     }
 
+    default_status = next(
+        (st for st in _DEFAULT_TAB_PRIORITY if counts.get(st, 0) > 0),
+        next((st for st in DASHBOARD_TAB_ORDER if counts.get(st, 0) > 0), "shown"),
+    )
+
     flash, flash_type = _flash_from_request(request)
     return templates.TemplateResponse(request, "dashboard.html", {
         "request": request,
@@ -375,7 +386,8 @@ def dashboard(
         "active": "dashboard",
         "groups": groups,
         "counts": counts,
-        "status_order": STATUS_ORDER,
+        "status_order": DASHBOARD_TAB_ORDER,
+        "default_status": default_status,
         "total": len(records),
         "valid_transitions": valid_transitions,
         "fit_autosave_threshold": threshold,

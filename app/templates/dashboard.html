@@ -10,16 +10,18 @@
   <button id="dash-crawl-close-btn" class="btn btn-sm btn-ghost" style="display:none;margin-top:10px;" onclick="closeDashCrawlPanel()">Close</button>
 </div>
 
-{# ── Status summary bar ── #}
-<div class="card" style="padding:12px 16px;">
+{# ── Status tab strip (doubles as summary bar) ── #}
+<div class="card" style="padding:12px 16px;position:sticky;top:0;z-index:5;">
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
     {% for st in status_order %}
     {% set cnt = counts.get(st, 0) %}
-    <a href="#section-{{ st }}" style="text-decoration:none;">
+    {% if cnt > 0 %}
+    <a href="#section-{{ st }}" class="dash-tab-link" data-tab="{{ st }}" style="text-decoration:none;">
       <span class="badge badge-{{ st }}" style="font-size:12px;padding:3px 10px;">
         {{ st }} {{ cnt }}
       </span>
     </a>
+    {% endif %}
     {% endfor %}
     <span style="margin-left:auto;color:#9ca3af;font-size:12px;">
       {{ total }} total &nbsp;·&nbsp;
@@ -28,11 +30,11 @@
   </div>
 </div>
 
-{# ── Sections by status ── #}
+{# ── Sections by status (one tab panel each, JS shows only the active one) ── #}
 {% for st in status_order %}
 {% set records = groups.get(st, []) %}
 {% if records %}
-<div class="card" id="section-{{ st }}">
+<div class="card dash-tab-panel" data-tab="{{ st }}" id="section-{{ st }}" style="display:none;">
   <div class="section-header">
     <span class="badge badge-{{ st }}">{{ st }}</span>
     <span class="section-count">{{ records|length }}</span>
@@ -310,6 +312,40 @@ document.querySelectorAll('table').forEach(function(table) {
     input.addEventListener('input', applyFilters);
   });
 });
+
+// Dashboard status tabs (#78) — only one status panel visible at a time so
+// reaching the top nav never requires scrolling past a long Applied list.
+(function() {
+  var tabLinks = Array.prototype.slice.call(document.querySelectorAll('.dash-tab-link'));
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.dash-tab-panel'));
+  var validTabs = panels.map(function(p) { return p.dataset.tab; });
+  var defaultTab = "{{ default_status }}";
+
+  function activateTab(tab) {
+    if (validTabs.indexOf(tab) === -1) return;
+    panels.forEach(function(p) { p.style.display = (p.dataset.tab === tab) ? '' : 'none'; });
+    tabLinks.forEach(function(a) { a.classList.toggle('active', a.dataset.tab === tab); });
+  }
+
+  function tabFromHash() {
+    return window.location.hash.replace('#section-', '');
+  }
+
+  tabLinks.forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      history.pushState(null, '', '#section-' + a.dataset.tab);
+      activateTab(a.dataset.tab);
+    });
+  });
+
+  window.addEventListener('hashchange', function() {
+    activateTab(tabFromHash());
+  });
+
+  var initial = tabFromHash();
+  activateTab(validTabs.indexOf(initial) !== -1 ? initial : defaultTab);
+})();
 
 // Interview-prep modal (#74)
 var prepDialog = document.getElementById('prep-dialog');

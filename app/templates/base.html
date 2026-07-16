@@ -47,6 +47,12 @@
   .badge-skipped     { background: #f3f4f6; color: #6b7280; }
   .badge-expired     { background: #f3f4f6; color: #9ca3af; }
 
+  /* Dashboard status tabs (#78) */
+  .dash-tab-link { opacity: .55; transition: opacity .15s; }
+  .dash-tab-link:hover { opacity: .8; }
+  .dash-tab-link.active { opacity: 1; }
+  .dash-tab-link.active .badge { box-shadow: 0 0 0 2px currentColor inset; }
+
   /* Fit% color */
   .fit-hi  { color: #16a34a; font-weight: 700; }
   .fit-mid { color: #d97706; font-weight: 600; }
