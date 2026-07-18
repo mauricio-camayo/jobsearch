@@ -211,7 +211,7 @@
               } %}
               {% for dim, d in r.fit_breakdown.items() %}
               <tr style="border-top:1px solid #f3f4f6;">
-                <td style="padding:3px 8px 3px 0;color:#374151;white-space:nowrap;">
+                <td style="padding:3px 8px 3px 0;color:var(--text-heading);white-space:nowrap;">
                   {{ _dim_labels.get(dim, dim.replace('_',' ').title()) }}
                 </td>
                 <td style="padding:3px 8px 3px 0;text-align:right;white-space:nowrap;font-weight:600;">

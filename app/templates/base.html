@@ -4,11 +4,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JobSearch{% if title %} — {{ title }}{% endif %}</title>
+<script>
+  // Apply saved theme before first paint to avoid a light/dark flash.
+  (function() {
+    var saved = localStorage.getItem('jobsearch-theme');
+    if (saved === 'light' || saved === 'dark') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  })();
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Theme tokens — light defaults, dark via system preference or manual override */
+  :root {
+    --bg: #f5f5f5;
+    --text: #1a1a1a;
+    --text-heading: #374151;
+    --link: #2563eb;
+    --card-bg: #fff;
+    --card-border: #e5e7eb;
+    --input-bg: #fff;
+    --input-border: #d1d5db;
+    --hover-bg: #f9fafb;
+    --ghost-bg: #f3f4f6;
+    --pill-bg: #e5e7eb;
+    --shadow: rgba(0, 0, 0, .25);
+    --spinner-track: rgba(0, 0, 0, .15);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --text: #e2e8f0;
+      --text-heading: #cbd5e1;
+      --link: #60a5fa;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --input-bg: #1e293b;
+      --input-border: #475569;
+      --hover-bg: #24334d;
+      --ghost-bg: #334155;
+      --pill-bg: #334155;
+      --shadow: rgba(0, 0, 0, .6);
+      --spinner-track: rgba(255, 255, 255, .15);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f5f5; --text: #1a1a1a; --text-heading: #374151; --link: #2563eb;
+    --card-bg: #fff; --card-border: #e5e7eb; --input-bg: #fff; --input-border: #d1d5db;
+    --hover-bg: #f9fafb; --ghost-bg: #f3f4f6; --pill-bg: #e5e7eb;
+    --shadow: rgba(0, 0, 0, .25); --spinner-track: rgba(0, 0, 0, .15);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f172a; --text: #e2e8f0; --text-heading: #cbd5e1; --link: #60a5fa;
+    --card-bg: #1e293b; --card-border: #334155; --input-bg: #1e293b; --input-border: #475569;
+    --hover-bg: #24334d; --ghost-bg: #334155; --pill-bg: #334155;
+    --shadow: rgba(0, 0, 0, .6); --spinner-track: rgba(255, 255, 255, .15);
+  }
+
   body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
-         background: #f5f5f5; color: #1a1a1a; }
-  a { color: #2563eb; text-decoration: none; }
+         background: var(--bg); color: var(--text); }
+  a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
 
   /* Nav */
@@ -24,7 +80,7 @@
   /* Layout */
   .page { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
   h1 { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
-  h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: #374151; }
+  h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: var(--text-heading); }
 
   /* Flash messages */
   .flash { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px;
@@ -33,7 +89,7 @@
   .flash.err { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
   /* Cards / panels */
-  .card { background: #fff; border-radius: 8px; border: 1px solid #e5e7eb;
+  .card { background: var(--card-bg); border-radius: 8px; border: 1px solid var(--card-border);
           padding: 16px; margin-bottom: 16px; }
 
   /* Status badge */
@@ -62,21 +118,21 @@
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; font-size: 11px; font-weight: 600; color: #6b7280;
        text-transform: uppercase; letter-spacing: .04em;
-       padding: 6px 10px; border-bottom: 2px solid #e5e7eb; }
-  td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+       padding: 6px 10px; border-bottom: 2px solid var(--card-border); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f9fafb; }
+  tr:hover td { background: var(--hover-bg); }
 
   /* Status section headers */
   .section-header { display: flex; align-items: center; gap: 10px;
                     padding: 10px 0; margin-top: 8px; }
-  .section-count { background: #e5e7eb; color: #374151; border-radius: 10px;
+  .section-count { background: var(--pill-bg); color: var(--text-heading); border-radius: 10px;
                    padding: 1px 8px; font-size: 11px; font-weight: 700; }
 
   /* Inline forms */
   select, input[type="text"], input[type="url"], input[type="number"],
-  textarea { font-size: 13px; padding: 4px 8px; border: 1px solid #d1d5db;
-             border-radius: 4px; background: #fff; font-family: inherit; }
+  textarea { font-size: 13px; padding: 4px 8px; border: 1px solid var(--input-border);
+             border-radius: 4px; background: var(--input-bg); color: var(--text); font-family: inherit; }
   select:focus, input:focus, textarea:focus { outline: 2px solid #3b82f6;
              outline-offset: 1px; }
   textarea { width: 100%; resize: vertical; }
@@ -87,7 +143,7 @@
   .btn:hover { opacity: .85; }
   .btn-primary { background: #2563eb; color: #fff; }
   .btn-sm { padding: 3px 8px; font-size: 12px; }
-  .btn-ghost { background: #f3f4f6; color: #374151; }
+  .btn-ghost { background: var(--ghost-bg); color: var(--text-heading); }
   .btn-danger { background: #fee2e2; color: #b91c1c; }
 
   /* Notes cell */
@@ -108,7 +164,7 @@
   /* Form groups */
   .field { margin-bottom: 12px; }
   .field label { display: block; font-size: 12px; font-weight: 600;
-                 color: #374151; margin-bottom: 4px; }
+                 color: var(--text-heading); margin-bottom: 4px; }
   .field small { color: #9ca3af; font-size: 11px; }
 
   /* Search results */
@@ -141,23 +197,30 @@
              border-top-color: #fff; border-radius: 50%;
              animation: spin .7s linear infinite;
              vertical-align: middle; }
-  .spinner-dark { border-color: rgba(0,0,0,.15); border-top-color: #374151; }
+  .spinner-dark { border-color: var(--spinner-track); border-top-color: var(--text-heading); }
 
   /* Wide-table scroll wrapper (#72) */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   /* Interview-prep notes (#74) */
+  dialog { background: var(--card-bg); color: var(--text); border: none; border-radius: 8px; }
   dialog::backdrop { background: rgba(15, 23, 42, .5); }
-  .prep-note { border-left: 3px solid #e5e7eb; }
+  .prep-note { border-left: 3px solid var(--card-border); }
   .prep-note-pinned { border-left: 3px solid #d97706; }
   .prep-body { overflow-wrap: break-word; word-break: break-word; }
-  .prep-body h4 { font-size: 13px; margin: 8px 0 4px; color: #1e293b; overflow-wrap: break-word; word-break: break-word; }
-  .prep-body h5 { font-size: 12px; margin: 8px 0 4px; color: #374151; overflow-wrap: break-word; word-break: break-word; }
+  .prep-body h4 { font-size: 13px; margin: 8px 0 4px; color: var(--text-heading); overflow-wrap: break-word; word-break: break-word; }
+  .prep-body h5 { font-size: 12px; margin: 8px 0 4px; color: var(--text-heading); overflow-wrap: break-word; word-break: break-word; }
   .prep-body p { font-size: 13px; line-height: 1.5; margin-bottom: 6px; overflow-wrap: break-word; word-break: break-word; }
   .prep-body ul, .prep-body ol { font-size: 13px; line-height: 1.5; margin: 0 0 6px 18px; overflow-wrap: break-word; word-break: break-word; }
   .prep-body li { margin-bottom: 2px; overflow-wrap: break-word; word-break: break-word; }
   .prep-body a { overflow-wrap: break-word; word-break: break-word; }
-  .prep-body strong { color: #1e293b; }
+  .prep-body strong { color: var(--text-heading); }
+
+  /* Theme toggle */
+  .theme-toggle { background: transparent; color: #94a3b8; border: 1px solid #475569;
+                  border-radius: 5px; font-size: 11px; padding: 3px 9px; cursor: pointer;
+                  font-family: inherit; }
+  .theme-toggle:hover { color: #f8fafc; border-color: #64748b; }
 
   /* Responsive breakpoints (#72) */
   @media (max-width: 768px) {
@@ -197,6 +260,7 @@
   <a href="/admin/users" class="{{ 'active' if active == 'admin' }}">Admin</a>
   {% endif %}
   <span style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+    <button type="button" id="theme-toggle" class="theme-toggle" title="Toggle color theme"></button>
     <span style="color:#64748b; font-size:11px;">v{{ app_version }}</span>
     <span style="color:#94a3b8; font-size:12px;">{{ current_user.email }}</span>
     <form method="post" action="/logout" style="display:inline;">
@@ -204,6 +268,8 @@
       <button class="btn btn-ghost btn-sm" type="submit">Log out</button>
     </form>
   </span>
+  {% else %}
+  <button type="button" id="theme-toggle" class="theme-toggle" title="Toggle color theme" style="margin-left:auto;"></button>
   {% endif %}
 </nav>
 <div class="page">
@@ -212,5 +278,40 @@
   {% endif %}
   {% block content %}{% endblock %}
 </div>
+<script>
+  (function() {
+    var KEY = 'jobsearch-theme';
+    var ORDER = ['auto', 'light', 'dark'];
+    var LABELS = { auto: '🖥️ Auto', light: '☀️ Light', dark: '🌙 Dark' };
+
+    function current() {
+      var saved = localStorage.getItem(KEY);
+      return (saved === 'light' || saved === 'dark') ? saved : 'auto';
+    }
+
+    function apply(theme) {
+      if (theme === 'auto') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+    }
+
+    var btn = document.getElementById('theme-toggle');
+    if (btn) {
+      btn.textContent = LABELS[current()];
+      btn.addEventListener('click', function() {
+        var next = ORDER[(ORDER.indexOf(current()) + 1) % ORDER.length];
+        if (next === 'auto') {
+          localStorage.removeItem(KEY);
+        } else {
+          localStorage.setItem(KEY, next);
+        }
+        apply(next);
+        btn.textContent = LABELS[next];
+      });
+    }
+  })();
+</script>
 </body>
 </html>
